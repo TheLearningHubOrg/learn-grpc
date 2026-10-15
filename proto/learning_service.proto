@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package learning.v1;
+
+service LearningService {
+  // 1. Unary RPC: Fetch single stage by number
+  rpc GetStage (GetStageRequest) returns (StageResponse);
+
+  // 2. Server Streaming RPC: Stream all roadmap stages
+  rpc StreamRoadmap (StreamRoadmapRequest) returns (stream StageResponse);
+
+  // 3. Client Streaming RPC: Stream metrics records and return summary
+  rpc RecordMetrics (stream MetricRecord) returns (MetricSummary);
+
+  // 4. Bi-directional Streaming RPC: Live interactive channel
+  rpc LiveExchange (stream ChatMessage) returns (stream ChatMessage);
+}
+
+message GetStageRequest {
+  int32 stage_number = 1;
+}
+
+message StreamRoadmapRequest {
+  string category = 1;
+}
+
+message StageResponse {
+  int32 stage_number = 1;
+  string title = 2;
+  string domain_focus = 3;
+  repeated string key_concepts = 4;
+}
+
+message MetricRecord {
+  string metric_name = 1;
+  double value = 2;
+  int64 timestamp = 3;
+}
+
+message MetricSummary {
+  int32 total_records = 1;
+  double average_value = 2;
+  double max_value = 3;
+  double min_value = 4;
+}
+
+message ChatMessage {
+  string sender = 1;
+  string message = 2;
+  int64 timestamp = 3;
+}
