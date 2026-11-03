@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Must match EXPOSE in the Dockerfile and the port the process listens on.
+  # gRPC and the HTTP health endpoint share this port.
+  APP_PORT: "8080"
+  HEALTH_PATH: "/health"
+
+jobs:
+  proto:
+    name: Lint protos and check generated code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+      - run: buf lint
+      - run: buf format --diff --exit-code
+      - name: Breaking-change check against main
+        if: github.event_name == 'pull_request'
+        run: |
+          if git cat-file -e origin/main:buf.yaml 2>/dev/null; then
+            buf breaking --against ".git#branch=origin/main"
+          else
+            echo "main has no buf module yet; nothing to compare against"
+          fi
+      - name: Generated code is up to date
+        run: |
+          buf generate
+          git diff --exit-code -- gen/
+
+  test:
+    name: Vet, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go mod download
+      - run: go vet ./...
+      - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go test -race -count=1 ./...
+      - run: go build -o bin/ ./...
+
+  docker:
+    name: Docker image builds and answers on APP_PORT
+    needs: [proto, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          push: false
+          tags: guide-app:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test the container
+        run: |
+          docker run -d --name app -p 8080:${APP_PORT} guide-app:ci
+          for _ in $(seq 1 30); do
+            if curl -fsS "http://localhost:8080${HEALTH_PATH}" > /dev/null; then
+              echo "Container answered on port ${APP_PORT}"; exit 0
+            fi
+            sleep 2
+          done
+          docker logs app
+          exit 1
+      - name: Call an RPC through the container with grpcurl
+        run: |
+          docker run --rm --network host fullstorydev/grpcurl:v1.9.3 \
+            -plaintext -d '{"stage_number": 1}' localhost:8080 learning.v1.LearningService/GetStage

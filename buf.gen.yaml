@@ -1,0 +1,16 @@
+# Plugins run through `go tool`, so their versions are pinned in go.mod and
+# every machine (and CI) generates byte-identical code.
+version: v2
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/TheLearningHubOrg/learn-grpc/gen
+plugins:
+  - local: ["go", "tool", "protoc-gen-go"]
+    out: gen
+    opt: paths=source_relative
+  - local: ["go", "tool", "protoc-gen-go-grpc"]
+    out: gen
+    opt: paths=source_relative
+clean: true

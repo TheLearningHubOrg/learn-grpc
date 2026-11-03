@@ -1,0 +1,72 @@
+// LearningService is the starter contract for this guide. It exposes one
+// method per gRPC call shape so every pattern in Stage 3 has a working example.
+syntax = "proto3";
+
+package learning.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/TheLearningHubOrg/learn-grpc/gen/learning/v1;learningv1";
+
+service LearningService {
+  // Unary: one request, one response.
+  rpc GetStage(GetStageRequest) returns (Stage);
+
+  // Server streaming: one request, a stream of responses.
+  rpc StreamRoadmap(StreamRoadmapRequest) returns (stream Stage);
+
+  // Client streaming: a stream of requests, one response.
+  rpc RecordMetrics(stream MetricRecord) returns (MetricSummary);
+
+  // Bidirectional streaming: two independent streams on one HTTP/2 stream.
+  rpc LiveExchange(stream ChatMessage) returns (stream ChatMessage);
+}
+
+// Track groups stages. The zero value is a sentinel, never a real track.
+enum Track {
+  TRACK_UNSPECIFIED = 0;
+  TRACK_FOUNDATIONS = 1;
+  TRACK_PRODUCTION = 2;
+  TRACK_CAREER = 3;
+}
+
+message GetStageRequest {
+  int32 stage_number = 1;
+}
+
+message StreamRoadmapRequest {
+  // TRACK_UNSPECIFIED streams every stage.
+  Track track = 1;
+}
+
+message Stage {
+  // Field 5 once held a free-text difficulty. It is reserved so that no
+  // future field can reuse the number or the name with a different type.
+  reserved 5;
+  reserved "difficulty";
+
+  int32 stage_number = 1;
+  string title = 2;
+  string domain_focus = 3;
+  repeated string key_concepts = 4;
+  Track track = 6;
+}
+
+message MetricRecord {
+  string name = 1;
+  double value = 2;
+  google.protobuf.Timestamp recorded_at = 3;
+}
+
+message MetricSummary {
+  int32 total_records = 1;
+  double average_value = 2;
+  double max_value = 3;
+  double min_value = 4;
+}
+
+message ChatMessage {
+  string sender = 1;
+  string message = 2;
+  google.protobuf.Timestamp sent_at = 3;
+}
